@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="A+ Study">
+  <meta name="description" content="CompTIA A+ study app: notes, flashcards, practice questions and walking-friendly audio.">
+  <title>A+ Study</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar" aria-label="Sidebar">
+      <div class="brand"><span class="brand-mark">A+</span><span>Study</span></div>
+      <nav id="sidebar-nav"></nav>
+      <p class="side-foot">CompTIA A+ Core 1<br>Sections 4 and 5</p>
+    </aside>
+    <main id="main"></main>
+    <nav id="tabbar" aria-label="Primary"></nav>
+  </div>
+  <script src="data-notes.js"></script>
+  <script src="data-cards.js"></script>
+  <script src="data-questions.js"></script>
+  <script src="core.js"></script>
+  <script src="views-a.js"></script>
+  <script src="views-b.js"></script>
+</body>
+</html>
