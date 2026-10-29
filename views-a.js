@@ -263,7 +263,7 @@
     const log = S.events.slice(-10).reverse().map(e => {
       const t = A.TOPIC[e.topic] ? A.TOPIC[e.topic].name : e.topic;
       let what;
-      if (e.kind === 'c') what = 'Flashcard &middot; ' + ['Again', 'Hard', 'Good', 'Easy'][e.x];
+      if (e.kind === 'c') what = 'Flashcard &middot; ' + ['Red', 'Yellow', 'Green', 'Green'][e.x];
       else what = 'Question &middot; ' + (e.x.ok ? 'correct' : 'missed') + ' &middot; ' + ({ sure: 'sure', think: 'think so', guess: 'guessing' }[e.x.conf]);
       return `<div class="li"><span class="li-body"><b>${esc(t)}</b><small>${what}</small></span><small class="dim">${A.ago(e.t)}</small></div>`;
     }).join('');

@@ -31,7 +31,7 @@ use Safari in a tab, export a backup now and then from Progress > Export.
 | --- | --- |
 | Today | Cards due, daily goal ring, review reminders, recent quiz scores, `.ics` daily reminder |
 | Notes | 12 lessons, full-text search with highlighting, the Exam-Critical Five per section |
-| Cards | 121 flashcards, spaced repetition (Again / Hard / Good / Easy), cram mode, weak-topic deck |
+| Cards | 121 flashcards with red / yellow / green lights (swipe or tap), shuffle, browse mode, filter by light, spaced repetition underneath |
 | Quiz | 76 original questions: recall, comparison, scenario, PBQ-style (ordering, matching, select-all). Rate Sure / Think so / Guessing on each. Right-but-guessed answers stay flagged. Retest mode targets weak spots |
 | Listen | Read notes aloud or "quiz me" (question, pause, answer). Speed, voice, think time, sleep timer, keep-screen-on |
 | Progress | Topic mastery, confidence calibration, confident misses, 4-week activity map, export/import backup |

@@ -8,76 +8,117 @@
     `<button class="${String(cur) === String(v) ? 'on' : ''}" data-act="${act}" data-v="${v}" aria-pressed="${String(cur) === String(v)}">${l}</button>`).join('')}</div>`;
 
   /* ================================ CARDS ================================ */
-  const C = { phase: 'setup', scope: 'all', mode: 'due', queue: [], i: 0, flipped: false, stats: [0, 0, 0, 0], initial: 0, done: 0 };
-  A.setCardScope = s => { C.scope = s; C.phase = 'setup'; };
+  // Three lights sit on top of the spaced-repetition schedule: red = again, yellow = hard, green = good.
+  // Red and yellow cards recycle in the session until they turn green.
+  const LIGHTS = [['red', "Don't know"], ['yellow', 'Kind of'], ['green', 'Got it']];
+  const LIGHT_NAME = { red: 'Red', yellow: 'Yellow', green: 'Green', new: 'New' };
+  const C = { phase: 'setup', scope: 'all', mode: 'due', filter: 'all', queue: [], i: 0, flipped: false, stats: [0, 0, 0], initial: 0, greened: new Set(), rated: new Set(), swipedAt: 0 };
+  A.setCardScope = s => { C.scope = s; C.filter = 'all'; C.phase = 'setup'; };
+
+  function lightOf(id) {
+    const s = S.cards[id];
+    if (!s) return 'new';
+    if (s.light) return s.light;
+    return s.reps === 0 ? 'red' : s.int < 1 ? 'yellow' : 'green'; // cards reviewed before the lights existed
+  }
+
+  function lightCounts() {
+    const n = { red: 0, yellow: 0, green: 0, new: 0 };
+    CARDS.forEach(c => { if (A.inScope(c.topic, C.scope)) n[lightOf(c.id)]++; });
+    return n;
+  }
 
   function cardQueue() {
-    if (C.mode === 'cram') return A.shuffle(CARDS.filter(c => A.inScope(c.topic, C.scope))).map(c => c.id);
-    return A.dueCards(C.scope).map(c => c.id).concat(A.newCards(C.scope).slice(0, S.settings.newPer).map(c => c.id));
+    if (C.mode === 'due' && C.filter === 'all') {
+      return A.dueCards(C.scope).map(c => c.id).concat(A.newCards(C.scope).slice(0, S.settings.newPer).map(c => c.id));
+    }
+    return A.shuffle(CARDS.filter(c => A.inScope(c.topic, C.scope) && (C.filter === 'all' || lightOf(c.id) === C.filter))).map(c => c.id);
   }
 
   function cardsSetup() {
-    const due = A.dueCards(C.scope).length;
-    const fresh = A.newCards(C.scope).length;
-    const inDeck = CARDS.filter(c => A.inScope(c.topic, C.scope)).length;
     const n = cardQueue().length;
+    const counts = lightCounts();
+    const inDeck = counts.red + counts.yellow + counts.green + counts.new;
+    const due = A.dueCards(C.scope).length;
+    const barSeg = k => counts[k] ? `<i class="${k}" style="width:${(100 * counts[k] / inDeck).toFixed(1)}%"></i>` : '';
+    const chips = [['all', 'All', inDeck], ['red', 'Red', counts.red], ['yellow', 'Yellow', counts.yellow], ['green', 'Green', counts.green], ['new', 'New', counts.new]];
+    const browse = C.mode === 'browse';
+    const modeNote = C.filter !== 'all' ? `Every ${LIGHT_NAME[C.filter].toLowerCase()} card in this deck, shuffled.`
+      : C.mode === 'due' ? `${due} due now, plus up to ${S.settings.newPer} new.`
+      : C.mode === 'cram' ? 'Every card in this deck, shuffled, whether due or not.'
+      : 'Flip through the deck in random order with no rating.';
     return `<div class="page">
       <h1 class="large">Flashcards</h1>
-      <p class="muted">Rate how well you knew each card. Cards you miss come back soon; cards you know come back later.</p>
+      <p class="muted">Flip a card, then tap a light: <b class="c-red">red</b> if you don't know it, <b class="c-yellow">yellow</b> if you kind of do, <b class="c-green">green</b> if you've got it. Red and yellow cards keep coming back until they turn green.</p>
+      <section class="card">
+        <div class="lbar" role="img" aria-label="Card lights">${barSeg('red')}${barSeg('yellow')}${barSeg('green')}${barSeg('new')}</div>
+        <div class="lchips">${chips.map(([k, l, c]) => `<button class="lchip${C.filter === k ? ' on' : ''}" data-act="cFilter" data-v="${k}" aria-pressed="${C.filter === k}">${k === 'all' ? '' : `<i class="ldot ${k}"></i>`}${l} <b>${c}</b></button>`).join('')}</div>
+      </section>
       <div class="list">
         <div class="li stack-li"><b>Deck</b>${A.scopeSelect(C.scope, 'cScope', true)}</div>
-        <div class="li stack-li"><b>Mode</b>${seg([['due', 'Due and new'], ['cram', 'Cram all']], C.mode, 'cMode')}</div>
+        <div class="li stack-li"><b>Mode</b>${seg([['due', 'Due and new'], ['cram', 'Shuffle all'], ['browse', 'Browse']], C.mode, 'cMode')}</div>
       </div>
-      <div class="stat-row">
-        <div class="stat"><b>${due}</b><span>due now</span></div>
-        <div class="stat"><b>${Math.min(fresh, S.settings.newPer)}</b><span>new today</span></div>
-        <div class="stat"><b>${inDeck}</b><span>in deck</span></div>
-      </div>
-      <button class="btn primary wide" data-act="cStart" ${n ? '' : 'disabled'}>${n ? 'Start ' + plural(n, 'card') : 'Nothing due in this deck'}</button>
-      ${!n ? '<p class="muted small center">Switch to Cram all to study ahead, or come back when cards are due.</p>' : ''}
+      <p class="muted small">${modeNote}</p>
+      <button class="btn primary wide" data-act="cStart" ${n ? '' : 'disabled'}>${n ? (browse ? 'Browse ' : 'Start ') + plural(n, 'card') : 'Nothing to show here'}</button>
+      ${!n ? '<p class="muted small center">Pick another color or mode, or come back when cards are due.</p>' : ''}
     </div>`;
   }
 
-  function intervalLabel(id, r) {
-    const nc = A.schedule(S.cards[id], r);
-    return A.fmtIn(nc.due - Date.now());
+  function dotHTML(id) {
+    const l = lightOf(id);
+    return `<i class="ldot ${l}" title="${LIGHT_NAME[l]}"></i>`;
   }
 
   function cardsRun() {
-    const id = C.queue[C.i], card = A.CARD[id];
-    const pct = C.initial ? Math.round(100 * C.done / C.initial) : 0;
+    const id = C.queue[C.i], card = A.CARD[id], browse = C.mode === 'browse';
+    const total = browse ? C.queue.length : C.initial;
+    const at = browse ? C.i + 1 : C.greened.size;
+    const pct = total ? Math.round(100 * at / total) : 0;
     const t = A.TOPIC[card.topic];
     const long = A.plain(card.b).length > 120 ? ' long' : '';
+    const dot = dotHTML(id);
     return `<div class="page study">
       <div class="topbar"><button class="icon-btn" data-act="cEnd" aria-label="End session">${ic('x')}</button>
         <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
-        <span class="count">${C.done}/${C.initial}</span></div>
+        <span class="count">${at}/${total}</span></div>
       <div class="flip${C.flipped ? ' on' : ''}" data-act="cFlip" role="button" tabindex="0" aria-label="${C.flipped ? 'Showing answer' : 'Tap to show answer'}">
         <div class="flip-in">
-          <div class="face front"><span class="chip">${esc(t.name)}</span><div class="ftxt">${md(card.f)}</div><span class="hint">Tap to reveal</span></div>
-          <div class="face back${long}"><span class="chip">Answer</span><div class="ftxt">${md(card.b)}</div><span class="hint dimmer">${md(card.f)}</span></div>
+          <div class="face front">${dot}<span class="chip">${esc(t.name)}</span><div class="ftxt">${md(card.f)}</div><span class="hint">Tap to reveal</span></div>
+          <div class="face back${long}">${dot}<span class="chip">Answer</span><div class="ftxt">${md(card.b)}</div><span class="hint dimmer">${md(card.f)}</span></div>
         </div>
       </div>
-      <div class="rate${C.flipped ? ' show' : ''}">
-        ${[['Again', 'again'], ['Hard', 'hard'], ['Good', 'good'], ['Easy', 'easy']].map(([l, c], r) =>
-          `<button class="rbtn ${c}" data-act="cRate" data-r="${r}" ${C.flipped ? '' : 'tabindex="-1"'}><b>${l}</b><small>${intervalLabel(id, r)}</small></button>`).join('')}
+      ${browse ? '' : `<div class="lights${C.flipped ? ' show' : ''}">
+        ${LIGHTS.map(([c, l], r) => `<button class="lbtn ${c}" data-act="cRate" data-r="${r}" ${C.flipped ? '' : 'tabindex="-1"'}><i class="lamp"></i><b>${l}</b></button>`).join('')}
+      </div>`}
+      <div class="cnav">
+        <button class="cn" data-act="cBack" ${C.i ? '' : 'disabled'}>${ic('chevl')} Back</button>
+        <button class="cn" data-act="cShuffle">${ic('shuffle')} Shuffle</button>
+        <button class="cn" data-act="cSkip">${browse ? 'Next' : 'Skip'} ${ic('chev')}</button>
       </div>
-      <p class="muted small center kbd">Space to flip &middot; 1 to 4 to rate</p>
+      <p class="muted small center kbd">Space to flip &middot; ${browse ? '' : '1 2 3 to rate &middot; '}arrows to move &middot; S to shuffle</p>
+      <p class="muted small center swipehint">${browse ? 'Swipe the card left for next, right for back' : 'Flip, then swipe the card: left = red, down = yellow, right = green'}</p>
     </div>`;
   }
 
   function cardsDone() {
+    if (C.mode === 'browse') {
+      return `<div class="page">
+        <div class="done-badge">${ic('check')}</div>
+        <h1 class="large center">End of deck</h1>
+        <p class="muted center">You went through ${plural(C.queue.length, 'card')}.</p>
+        <button class="btn primary wide" data-act="cStart">${ic('shuffle')} Shuffle and go again</button>
+        <button class="btn tinted wide" data-act="cAgain">Back to decks</button>
+      </div>`;
+    }
     const total = C.stats.reduce((a, b) => a + b, 0);
-    const knew = C.stats[2] + C.stats[3];
     return `<div class="page">
       <div class="done-badge">${ic('check')}</div>
       <h1 class="large center">Session complete</h1>
-      <p class="muted center">${plural(total, 'review')} &middot; ${A.pct(knew, total)}% rated Good or Easy</p>
+      <p class="muted center">${plural(total, 'rating')} &middot; ${A.pct(C.stats[2], total)}% green</p>
       <div class="stat-row">
-        <div class="stat"><b class="c-red">${C.stats[0]}</b><span>again</span></div>
-        <div class="stat"><b class="c-orange">${C.stats[1]}</b><span>hard</span></div>
-        <div class="stat"><b class="c-green">${C.stats[2]}</b><span>good</span></div>
-        <div class="stat"><b class="c-blue">${C.stats[3]}</b><span>easy</span></div>
+        <div class="stat"><b class="c-red">${C.stats[0]}</b><span>red</span></div>
+        <div class="stat"><b class="c-yellow">${C.stats[1]}</b><span>yellow</span></div>
+        <div class="stat"><b class="c-green">${C.stats[2]}</b><span>green</span></div>
       </div>
       <button class="btn primary wide" data-act="cAgain">Back to decks</button>
       <a class="btn tinted wide" href="#/practice">${ic('practice')} Take a quiz on this</a>
@@ -85,43 +126,116 @@
   }
 
   A.views.cards = () => C.phase === 'run' ? cardsRun() : C.phase === 'done' ? cardsDone() : cardsSetup();
-  A.chg.cScope = el => { C.scope = el.value; A.rerender(); };
+  A.chg.cScope = el => { C.scope = el.value; C.filter = 'all'; A.rerender(); };
   A.act.cMode = d => { C.mode = d.v; A.rerender(); };
+  A.act.cFilter = d => { C.filter = d.v; A.rerender(); };
   A.act.cStart = () => {
     C.queue = cardQueue();
     if (!C.queue.length) return;
-    C.i = 0; C.flipped = false; C.stats = [0, 0, 0, 0]; C.initial = C.queue.length; C.done = 0; C.phase = 'run';
+    C.i = 0; C.flipped = false; C.stats = [0, 0, 0]; C.initial = C.queue.length; C.greened = new Set(); C.rated = new Set(); C.phase = 'run';
     A.rerender();
   };
   A.act.cFlip = () => {
-    if (C.phase !== 'run') return;
+    if (C.phase !== 'run' || Date.now() - C.swipedAt < 400) return;
     C.flipped = !C.flipped;
-    const f = A.$('.flip'), r = A.$('.rate');
-    if (!f || !r) { A.rerender(); return; }
+    const f = A.$('.flip'), r = A.$('.lights');
+    if (!f) { A.rerender(); return; }
     // toggle in place so the 3D flip animates instead of re-rendering
     f.classList.toggle('on', C.flipped);
     f.setAttribute('aria-label', C.flipped ? 'Showing answer' : 'Tap to show answer');
-    r.classList.toggle('show', C.flipped);
-    A.$$('.rbtn', r).forEach(b => { b.tabIndex = C.flipped ? 0 : -1; });
+    if (r) {
+      r.classList.toggle('show', C.flipped);
+      A.$$('.lbtn', r).forEach(b => { b.tabIndex = C.flipped ? 0 : -1; });
+    }
   };
   A.act.cEnd = () => { C.phase = C.stats.some(Boolean) ? 'done' : 'setup'; A.rerender(); };
   A.act.cAgain = () => { C.phase = 'setup'; A.rerender(); };
+  A.act.cBack = () => { if (C.phase !== 'run' || !C.i) return; C.i--; C.flipped = false; A.rerender(); };
+  A.act.cSkip = () => {
+    if (C.phase !== 'run') return;
+    if (C.mode === 'browse') {
+      if (C.i >= C.queue.length - 1) C.phase = 'done'; else C.i++;
+    } else {
+      if (C.i >= C.queue.length - 1) return; // nothing else to show
+      C.queue.push(C.queue.splice(C.i, 1)[0]); // park it at the end of the session
+    }
+    C.flipped = false; A.rerender();
+  };
+  A.act.cShuffle = () => {
+    if (C.phase !== 'run' || C.i >= C.queue.length - 1) return;
+    C.queue = C.queue.slice(0, C.i).concat(A.shuffle(C.queue.slice(C.i)));
+    C.flipped = false; A.rerender();
+  };
   A.act.cRate = d => {
-    if (C.phase !== 'run' || !C.flipped) return;
-    const r = +d.r, id = C.queue[C.i], card = A.CARD[id];
+    if (C.phase !== 'run' || C.mode === 'browse' || !C.flipped) return;
+    const l = +d.r, id = C.queue[C.i], card = A.CARD[id];
+    let r = l; // 0 again, 1 hard, 2 good
+    if (l === 2 && lightOf(id) === 'green' && !C.rated.has(id)) r = 3; // green twice in a row spaces it out further
     S.cards[id] = A.schedule(S.cards[id], r);
+    S.cards[id].light = LIGHTS[l][0];
+    C.rated.add(id);
     A.logEvent(card.topic, 'c', A.cScore[r], id, r);
-    C.stats[r]++;
-    if (r === 0) C.queue.splice(Math.min(C.i + 4, C.queue.length), 0, id); else C.done++;
+    C.stats[l]++;
+    if (l === 2) C.greened.add(id);
+    else {
+      C.greened.delete(id);
+      C.queue.splice(Math.min(C.i + (l === 0 ? 4 : 9), C.queue.length), 0, id);
+    }
     C.i++; C.flipped = false;
+    while (C.i < C.queue.length && C.greened.has(C.queue[C.i])) C.i++; // stale copies of cards already marked green
     if (C.i >= C.queue.length) C.phase = 'done';
     A.save(); A.rerender();
   };
+
   document.addEventListener('keydown', e => {
     if (A.route().name !== 'cards' || C.phase !== 'run' || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
-    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); A.act.cFlip(); }
-    else if (C.flipped && '1234'.includes(e.key) && e.key) A.act.cRate({ r: String(+e.key - 1) });
+    if (e.key === ' ' || e.key === 'Enter') { if (e.target.closest('button')) return; e.preventDefault(); A.act.cFlip(); }
+    else if (C.flipped && '123'.includes(e.key) && e.key) A.act.cRate({ r: String(+e.key - 1) });
+    else if (e.key === 'ArrowLeft') A.act.cBack();
+    else if (e.key === 'ArrowRight') A.act.cSkip();
+    else if (e.key === 's' || e.key === 'S') A.act.cShuffle();
   });
+
+  // Swipe the card: left = red, down = yellow, right = green (browse: left = next, right = back).
+  let T = null;
+  function swipeAction(dx, dy) {
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    if (C.mode === 'browse') return ax > ay && ax > 60 ? (dx < 0 ? 'cSkip' : 'cBack') : null;
+    if (!C.flipped) return null;
+    if (ax > ay && ax > 60) return dx < 0 ? 0 : 2;
+    if (dy > 60 && dy > ax) return 1;
+    return null;
+  }
+  document.addEventListener('touchstart', e => {
+    const f = e.target.closest && e.target.closest('.flip');
+    if (!f || C.phase !== 'run' || e.touches.length !== 1) { T = null; return; }
+    f.classList.remove('snap');
+    T = { x: e.touches[0].clientX, y: e.touches[0].clientY, el: f, moved: false };
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!T) return;
+    const dx = e.touches[0].clientX - T.x, dy = e.touches[0].clientY - T.y;
+    if (Math.abs(dx) + Math.abs(dy) > 12) T.moved = true;
+    if (!T.moved) return;
+    T.el.style.transform = `translate(${dx}px, ${Math.max(0, dy)}px) rotate(${dx / 25}deg)`;
+    const a = swipeAction(dx, dy);
+    const tint = typeof a === 'number' ? LIGHTS[a][0] : a === 'cSkip' ? 'next' : a === 'cBack' ? 'prev' : '';
+    if (tint) T.el.dataset.sw = tint; else delete T.el.dataset.sw;
+  }, { passive: true });
+  function swipeEnd(e) {
+    if (!T) return;
+    const t = T; T = null;
+    if (!t.moved) return;
+    C.swipedAt = Date.now();
+    const p = (e.changedTouches && e.changedTouches[0]) || { clientX: t.x, clientY: t.y };
+    const a = swipeAction(p.clientX - t.x, p.clientY - t.y);
+    if (a === null || e.type === 'touchcancel') {
+      t.el.classList.add('snap'); t.el.style.transform = ''; delete t.el.dataset.sw;
+    } else if (typeof a === 'number') A.act.cRate({ r: String(a) });
+    else A.act[a]();
+  }
+  document.addEventListener('touchend', swipeEnd);
+  document.addEventListener('touchcancel', swipeEnd);
 
   /* ================================ PRACTICE ================================ */
   const KINDS = [['recall', 'Recall'], ['compare', 'Comparison'], ['scenario', 'Scenario'], ['pbq', 'PBQ-style']];
