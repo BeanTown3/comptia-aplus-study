@@ -253,7 +253,7 @@
   function poolSize() { return Q.mode === 'retest' ? retestPool().length : mixedPool().length; }
 
   function mkCur(q) {
-    const c = { q, conf: null, checked: false, ok: null };
+    const c = { q, conf: null, mark: null, checked: false, ok: null };
     if (q.type === 'mc') { c.order = A.shuffle(q.opts.map((_, i) => i)); c.sel = null; }
     else if (q.type === 'multi') { c.opts = A.shuffle(q.good.map(t => ({ t, g: true })).concat(q.bad.map(t => ({ t, g: false })))); c.sel = new Set(); }
     else if (q.type === 'order') {
@@ -291,7 +291,7 @@
         <div class="li stack-li"><b>Length</b>${seg([[5, '5'], [10, '10'], [20, '20']], Q.count, 'qCount')}</div>
       </div>
       ${Q.mode === 'retest' ? `<section class="card"><b>Weak spots</b>
-        <p class="muted small">${fl ? plural(fl, 'question') + ' flagged (missed, or right but guessed).' : 'No flagged questions yet.'} ${wk.length ? 'Weak topics: ' + wk.slice(0, 4).map(w => esc(w.t.name) + ' ' + Math.round(w.m * 100) + '%').join(', ') + '.' : 'No weak topics yet.'}</p></section>` : ''}
+        <p class="muted small">${fl ? plural(fl, 'question') + ' flagged (missed, or marked "don’t know it").' : 'No flagged questions yet.'} ${wk.length ? 'Weak topics: ' + wk.slice(0, 4).map(w => esc(w.t.name) + ' ' + Math.round(w.m * 100) + '%').join(', ') + '.' : 'No weak topics yet.'}</p></section>` : ''}
       ${Q.msg ? `<p class="warn-text">${esc(Q.msg)}</p>` : ''}
       <button class="btn primary wide" data-act="qStart" ${n ? '' : 'disabled'}>${n ? 'Start ' + Math.min(Q.count, n) + ' questions' : (Q.mode === 'retest' ? 'No weak spots to retest yet' : 'No questions match')}</button>
       <p class="muted small center">${n} available</p>
@@ -338,15 +338,15 @@
   }
 
   function qRun() {
-    const c = Q.cur, q = c.q, ready = answered(c) && c.conf;
+    const c = Q.cur, q = c.q, ready = answered(c);
     const t = A.TOPIC[q.topic];
     const pct = Math.round(100 * Q.i / Q.list.length);
     let fb = '';
     if (c.checked) {
       const st = S.q[q.id];
       let extra = '';
-      if (c.ok && c.conf === 'guess') extra = 'Right, but you guessed. It stays flagged until you get it right with confidence.';
-      else if (!c.ok && c.conf === 'sure') extra = 'You were sure and it was wrong: that is the most useful miss. Reread the note.';
+      if (c.ok && c.mark === 'guess') extra = 'Right, but you marked it "Don’t know it". It stays flagged for retest.';
+      else if (!c.ok && c.mark === 'sure') extra = 'You said you knew it and it was wrong: that is the most useful miss. Reread the note.';
       else if (!c.ok) extra = 'Flagged for retest.';
       fb = `<div class="feedback ${c.ok ? 'good' : 'bad'}"><div class="fb-head">${ic(c.ok ? 'check' : 'x')}<b>${c.ok ? 'Correct' : 'Not quite'}</b></div>
         <p>${md(q.why)}</p>${extra ? `<p class="muted">${esc(extra)}</p>` : ''}
@@ -358,8 +358,10 @@
       <div class="chips"><span class="chip kind-${q.kind}">${KIND_NAME[q.kind]}</span><span class="chip">${esc(t.name)}</span></div>
       <h2 class="qtext">${md(q.q)}</h2>
       ${qBody(c)}
-      ${c.checked ? fb : `<div class="conf"><b>How sure are you?</b>${seg([['sure', 'Sure'], ['think', 'Think so'], ['guess', 'Guessing']], c.conf, 'qConf')}</div>
-        <button class="btn primary wide" data-act="qCheck" ${ready ? '' : 'disabled'}>Check answer</button>`}
+      ${c.checked ? fb + `<div class="mark"><b>Mark it <small>(optional)</small></b><div class="markbtns">
+        <button class="mk know${c.mark === 'sure' ? ' on' : ''}" data-act="qMark" data-v="sure" aria-pressed="${c.mark === 'sure'}">${ic('check')} I know it</button>
+        <button class="mk dont${c.mark === 'guess' ? ' on' : ''}" data-act="qMark" data-v="guess" aria-pressed="${c.mark === 'guess'}">${ic('x')} Don't know it</button></div></div>`
+        : `<button class="btn primary wide" data-act="qCheck" ${ready ? '' : 'disabled'}>Check answer</button>`}
       ${c.checked ? `<button class="btn primary wide" data-act="qNext">${Q.i + 1 >= Q.list.length ? 'See results' : 'Next'}</button>` : ''}
     </div>`;
   }
@@ -376,12 +378,12 @@
     return `<div class="page">
       <h1 class="large center">${p >= 80 ? 'Nice work' : p >= 60 ? 'Getting there' : 'Keep going'}</h1>
       <div class="ring big"><svg viewBox="0 0 110 110" aria-hidden="true"><circle cx="55" cy="55" r="${r}" class="ring-bg"/><circle cx="55" cy="55" r="${r}" class="ring-fg ${p >= 80 ? 'good' : p >= 60 ? 'ok' : 'bad'}" stroke-dasharray="${(circ * p / 100).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 55 55)"/></svg><div class="ring-txt"><b>${p}%</b><span>${correct} of ${total}</span></div></div>
-      <div class="list">${[['sure', 'Sure'], ['think', 'Think so'], ['guess', 'Guessing']].map(([k, l]) => { const [n, ok] = by(k); return `<div class="li"><span class="li-body"><b>${l}</b><small>${n ? ok + ' of ' + n + ' correct' : 'none'}</small></span><span class="score ${n && ok === n ? 'good' : n && ok === 0 ? 'bad' : 'ok'}">${n ? A.pct(ok, n) + '%' : '-'}</span></div>`; }).join('')}</div>
-      ${lucky ? `<p class="insight">${plural(lucky, 'right answer')} ${lucky === 1 ? 'was a guess' : 'were guesses'}. Flagged for retest.</p>` : ''}
+      <div class="list">${[['sure', 'Marked I know it'], ['think', 'Not marked'], ['guess', "Marked don't know it"]].map(([k, l]) => { const [n, ok] = by(k); return `<div class="li"><span class="li-body"><b>${l}</b><small>${n ? ok + ' of ' + n + ' correct' : 'none'}</small></span><span class="score ${n && ok === n ? 'good' : n && ok === 0 ? 'bad' : 'ok'}">${n ? A.pct(ok, n) + '%' : '-'}</span></div>`; }).join('')}</div>
+      ${lucky ? `<p class="insight">${plural(lucky, 'right answer')} you marked "don't know it". Flagged for retest.</p>` : ''}
       ${sureWrong ? `<p class="insight bad">${plural(sureWrong, 'confident miss')}. Those are the ones to reread.</p>` : ''}
       ${wk.length ? `<p class="insight">Topics to firm up: ${wk.slice(0, 3).map(w => esc(w.t.name)).join(', ')}.</p>` : ''}
       <h2 class="section-title">Review</h2>
-      <div class="list">${res.map(x => { const q = A.QUES[x.id]; return `<a class="li" href="#/notes/${A.TOPIC[q.topic].lesson}"><span class="li-ic ${x.ok ? 'green' : 'red'}">${ic(x.ok ? 'check' : 'x')}</span><span class="li-body"><b>${esc(A.plain(q.q).slice(0, 100))}${q.q.length > 100 ? '...' : ''}</b><small>${KIND_NAME[q.kind]} &middot; ${{ sure: 'sure', think: 'think so', guess: 'guessing' }[x.conf]}</small></span>${ic('chev', 'dim')}</a>`; }).join('')}</div>
+      <div class="list">${res.map(x => { const q = A.QUES[x.id]; return `<a class="li" href="#/notes/${A.TOPIC[q.topic].lesson}"><span class="li-ic ${x.ok ? 'green' : 'red'}">${ic(x.ok ? 'check' : 'x')}</span><span class="li-body"><b>${esc(A.plain(q.q).slice(0, 100))}${q.q.length > 100 ? '...' : ''}</b><small>${KIND_NAME[q.kind]} &middot; ${{ sure: 'know it', think: 'not marked', guess: "don't know it" }[x.conf]}</small></span>${ic('chev', 'dim')}</a>`; }).join('')}</div>
       ${missed.length ? `<button class="btn primary wide" data-act="qRetestMissed">${ic('alert')} Retest ${plural(missed.length, 'question')} now</button>` : ''}
       <button class="btn tinted wide" data-act="qAgain">New quiz</button>
       <a class="btn tinted wide" href="#/progress">${ic('progress')} See progress</a>
@@ -423,11 +425,10 @@
   A.act.qPlace = d => { if (Q.cur.checked) return; Q.cur.placed.push(+d.i); A.rerender(); };
   A.act.qUnplace = d => { if (Q.cur.checked) return; Q.cur.placed.splice(+d.i, 1); A.rerender(); };
   A.chg.qMatch = el => { if (Q.cur.checked) return; Q.cur.rows[+el.dataset.i].sel = el.value; A.rerender(); };
-  A.act.qConf = d => { if (Q.cur.checked) return; Q.cur.conf = d.v; A.rerender(); };
   A.act.qCheck = () => {
     const c = Q.cur;
-    if (c.checked || !answered(c) || !c.conf) return;
-    c.ok = grade(c); c.checked = true;
+    if (c.checked || !answered(c)) return;
+    c.ok = grade(c); c.checked = true; c.conf = 'think'; // 'think' = not marked; the optional mark below can change it
     const q = c.q;
     const st = S.q[q.id] || (S.q[q.id] = { right: 0, wrong: 0, retest: false, last: null });
     c.ok ? st.right++ : st.wrong++;
@@ -435,6 +436,19 @@
     st.retest = !c.ok || c.conf === 'guess';
     A.logEvent(q.topic, 'q', A.qScore(c.ok, c.conf), q.id, { ok: c.ok, conf: c.conf });
     Q.res.push({ id: q.id, ok: c.ok, conf: c.conf });
+    A.save(); A.rerender();
+  };
+  // Optional self-rating after the answer is shown: "I know it" counts as sure, "Don't know it" as a guess.
+  A.act.qMark = d => {
+    const c = Q.cur;
+    if (!c.checked) return;
+    c.mark = c.mark === d.v ? null : d.v;
+    c.conf = c.mark || 'think';
+    const q = c.q, st = S.q[q.id], e = S.events[S.events.length - 1];
+    st.last.conf = c.conf;
+    st.retest = !c.ok || c.conf === 'guess';
+    if (e && e.kind === 'q' && e.ref === q.id) { e.s = A.qScore(c.ok, c.conf); e.x.conf = c.conf; }
+    Q.res[Q.res.length - 1].conf = c.conf;
     A.save(); A.rerender();
   };
   A.act.qNext = () => {

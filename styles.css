@@ -314,6 +314,15 @@ td.first { color: var(--label); font-weight: 500; }
 .lchip.on { background: rgba(10, 132, 255, .22); color: var(--blue-soft); }
 .swipehint { display: none; margin-top: 10px; }
 @media (hover: none) { .swipehint { display: block; } }
+.mark { margin: 16px 0 4px; display: grid; gap: 8px; }
+.mark > b { font-size: 15px; } .mark small { color: var(--label2); font-weight: 400; }
+.markbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mk { border: 0; border-radius: 14px; height: 48px; font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--bg2); color: var(--label); }
+.mk .ic { width: 18px; height: 18px; stroke-width: 3; }
+.mk.know .ic { color: var(--green); } .mk.dont .ic { color: var(--red); }
+.mk.know.on { background: rgba(48, 209, 88, .2); box-shadow: inset 0 0 0 2px var(--green); }
+.mk.dont.on { background: rgba(255, 69, 58, .2); box-shadow: inset 0 0 0 2px var(--red); }
+.mk:active { transform: scale(.97); }
 .kbd { margin-top: 14px; }
 @media (hover: none) { .kbd { display: none; } }
 .done-badge { width: 84px; height: 84px; border-radius: 50%; background: var(--green); display: grid; place-items: center; margin: 28px auto 10px; color: #000; }

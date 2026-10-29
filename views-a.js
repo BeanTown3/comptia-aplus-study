@@ -39,7 +39,7 @@
     const rem = [];
     if (due.length) rem.push(['cards', 'bell', 'orange', plural(due.length, 'card') + ' due for review', 'Spaced repetition says now is the time.']);
     if (next24) rem.push(['cards', 'clock', 'blue', plural(next24, 'card') + ' due in the next 24 hours', 'Review tomorrow to keep the interval growing.']);
-    if (flagged.length) rem.push(['practice', 'alert', 'red', plural(flagged.length, 'question') + ' flagged for retest', 'Missed, or right but guessed.']);
+    if (flagged.length) rem.push(['practice', 'alert', 'red', plural(flagged.length, 'question') + ' flagged for retest', 'Missed, or marked "don’t know it".']);
     weak.slice(0, 2).forEach(w => rem.push(['practice', 'alert', 'orange', w.t.name + ' is ' + Math.round(w.m * 100) + '%', 'Weak topic. Retest it.']));
     if (last && Date.now() - last > 36 * 36e5) rem.push(['cards', 'flame', 'orange', 'Last studied ' + A.ago(last), streak ? 'Keep your streak alive.' : 'A quick 5-minute review restarts your streak.']);
     if (!rem.length) rem.push(['notes', 'check', 'green', last ? 'You are all caught up' : 'Welcome. Start with the notes', last ? (future.length ? 'Next card is due in ' + A.fmtIn(future[0] - now) + '.' : 'Nothing is due right now.') : 'Read a lesson, then review its flashcards.']);
@@ -264,7 +264,7 @@
       const t = A.TOPIC[e.topic] ? A.TOPIC[e.topic].name : e.topic;
       let what;
       if (e.kind === 'c') what = 'Flashcard &middot; ' + ['Red', 'Yellow', 'Green', 'Green'][e.x];
-      else what = 'Question &middot; ' + (e.x.ok ? 'correct' : 'missed') + ' &middot; ' + ({ sure: 'sure', think: 'think so', guess: 'guessing' }[e.x.conf]);
+      else what = 'Question &middot; ' + (e.x.ok ? 'correct' : 'missed') + ' &middot; ' + ({ sure: 'know it', think: 'not marked', guess: "don't know it" }[e.x.conf]);
       return `<div class="li"><span class="li-body"><b>${esc(t)}</b><small>${what}</small></span><small class="dim">${A.ago(e.t)}</small></div>`;
     }).join('');
 
@@ -299,9 +299,9 @@
 
       <h2 class="section-title">Confidence check</h2>
       <section class="card">
-        ${qEv.length ? `<div class="calib">${conf.map(c => `<div><b>${c.n ? A.pct(c.ok, c.n) + '%' : '-'}</b><span>${{ sure: 'When sure', think: 'When thinking', guess: 'When guessing' }[c.k]}</span><small>${c.ok}/${c.n} right</small></div>`).join('')}</div>
-        <p class="muted small">${sure.n >= 5 && A.pct(sure.ok, sure.n) < 85 ? 'You are sometimes sure and wrong. Reread those notes: misplaced confidence is the costliest kind.' : guess.n >= 5 && A.pct(guess.ok, guess.n) >= 60 ? 'Your guesses land often. Check the concepts behind them so they turn into "sure."' : 'Keep rating how sure you are. The pattern shows where you really stand.'}</p>`
-        : '<p class="muted">Answer a few quiz questions and rate your confidence to see your calibration.</p>'}
+        ${qEv.length ? `<div class="calib">${conf.map(c => `<div><b>${c.n ? A.pct(c.ok, c.n) + '%' : '-'}</b><span>${{ sure: 'Marked know it', think: 'Not marked', guess: "Marked don't know" }[c.k]}</span><small>${c.ok}/${c.n} right</small></div>`).join('')}</div>
+        <p class="muted small">${sure.n >= 5 && A.pct(sure.ok, sure.n) < 85 ? 'You sometimes mark "I know it" and are wrong. Reread those notes: misplaced confidence is the costliest kind.' : guess.n >= 5 && A.pct(guess.ok, guess.n) >= 60 ? 'You often get right the questions you marked "don’t know it". Check the concepts behind them so you can mark them "I know it."' : 'After each answer, mark "I know it" or "Don’t know it". The pattern shows where you really stand.'}</p>`
+        : '<p class="muted">Answer a few quiz questions and mark what you know to see your calibration.</p>'}
         ${misses.length ? `<h3 class="sub">Confident misses</h3><div class="list flat">${misses.slice(0, 5).map(id => { const q = A.QUES[id]; return `<a class="li" href="#/notes/${A.TOPIC[q.topic].lesson}"><span class="li-body"><b>${esc(A.plain(q.q).slice(0, 90))}${q.q.length > 90 ? '...' : ''}</b><small>Lesson ${A.TOPIC[q.topic].lesson}: open the note</small></span>${ic('chev', 'dim')}</a>`; }).join('')}</div>` : ''}
       </section>
 
