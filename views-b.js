@@ -8,9 +8,10 @@
     `<button class="${String(cur) === String(v) ? 'on' : ''}" data-act="${act}" data-v="${v}" aria-pressed="${String(cur) === String(v)}">${l}</button>`).join('')}</div>`;
 
   /* ================================ CARDS ================================ */
-  // Three lights sit on top of the spaced-repetition schedule: red = again, yellow = hard, green = good.
-  // Red and yellow cards recycle in the session until they turn green.
-  const LIGHTS = [['red', "Don't know"], ['yellow', 'Kind of'], ['green', 'Got it']];
+  // Rating is optional: Next just moves on. Three lights sit on top of the spaced-repetition schedule:
+  // red = again (didn't know it), yellow = review (shaky), green = good (know it).
+  // Rated red or yellow, a card recycles in the session until it turns green.
+  const LIGHTS = [['red', 'Again'], ['yellow', 'Review'], ['green', 'Good']];
   const LIGHT_NAME = { red: 'Red', yellow: 'Yellow', green: 'Green', new: 'New' };
   const C = { phase: 'setup', scope: 'all', mode: 'due', filter: 'all', queue: [], i: 0, flipped: false, stats: [0, 0, 0], initial: 0, greened: new Set(), rated: new Set(), swipedAt: 0 };
   A.setCardScope = s => { C.scope = s; C.filter = 'all'; C.phase = 'setup'; };
@@ -49,7 +50,7 @@
       : 'Flip through the deck in random order with no rating.';
     return `<div class="page">
       <h1 class="large">Flashcards</h1>
-      <p class="muted">Flip a card, then tap a light: <b class="c-red">red</b> if you don't know it, <b class="c-yellow">yellow</b> if you kind of do, <b class="c-green">green</b> if you've got it. Red and yellow cards keep coming back until they turn green.</p>
+      <p class="muted">Flip through the cards and tap <b>Next</b> to move on. Rating is optional. When you want to track a card, tap a light: <b class="c-red">Again</b> if you didn't know it, <b class="c-yellow">Review</b> if it's shaky, <b class="c-green">Good</b> if you know it. Again and Review cards come back later in the session.</p>
       <section class="card">
         <div class="lbar" role="img" aria-label="Card lights">${barSeg('red')}${barSeg('yellow')}${barSeg('green')}${barSeg('new')}</div>
         <div class="lchips">${chips.map(([k, l, c]) => `<button class="lchip${C.filter === k ? ' on' : ''}" data-act="cFilter" data-v="${k}" aria-pressed="${C.filter === k}">${k === 'all' ? '' : `<i class="ldot ${k}"></i>`}${l} <b>${c}</b></button>`).join('')}</div>
@@ -71,8 +72,8 @@
 
   function cardsRun() {
     const id = C.queue[C.i], card = A.CARD[id], browse = C.mode === 'browse';
-    const total = browse ? C.queue.length : C.initial;
-    const at = browse ? C.i + 1 : C.greened.size;
+    const total = C.queue.length;
+    const at = C.i + 1;
     const pct = total ? Math.round(100 * at / total) : 0;
     const t = A.TOPIC[card.topic];
     const long = A.plain(card.b).length > 120 ? ' long' : '';
@@ -93,15 +94,15 @@
       <div class="cnav">
         <button class="cn" data-act="cBack" ${C.i ? '' : 'disabled'}>${ic('chevl')} Back</button>
         <button class="cn" data-act="cShuffle">${ic('shuffle')} Shuffle</button>
-        <button class="cn" data-act="cSkip">${browse ? 'Next' : 'Skip'} ${ic('chev')}</button>
+        <button class="cn next" data-act="cNext">Next ${ic('chev')}</button>
       </div>
-      <p class="muted small center kbd">Space to flip &middot; ${browse ? '' : '1 2 3 to rate &middot; '}arrows to move &middot; S to shuffle</p>
-      <p class="muted small center swipehint">${browse ? 'Swipe the card left for next, right for back' : 'Flip, then swipe the card: left = red, down = yellow, right = green'}</p>
+      <p class="muted small center kbd">Space to flip &middot; ${browse ? '' : '1 2 3 to rate (optional) &middot; '}arrows to move &middot; S to shuffle</p>
+      <p class="muted small center swipehint">${browse ? 'Swipe the card left for next, right for back' : 'Swipe to move on. After flipping: left = red, down = yellow, right = green'}</p>
     </div>`;
   }
 
   function cardsDone() {
-    if (C.mode === 'browse') {
+    if (C.mode === 'browse' || !C.stats.some(Boolean)) {
       return `<div class="page">
         <div class="done-badge">${ic('check')}</div>
         <h1 class="large center">End of deck</h1>
@@ -114,11 +115,11 @@
     return `<div class="page">
       <div class="done-badge">${ic('check')}</div>
       <h1 class="large center">Session complete</h1>
-      <p class="muted center">${plural(total, 'rating')} &middot; ${A.pct(C.stats[2], total)}% green</p>
+      <p class="muted center">${plural(total, 'rating')} &middot; ${A.pct(C.stats[2], total)}% good</p>
       <div class="stat-row">
-        <div class="stat"><b class="c-red">${C.stats[0]}</b><span>red</span></div>
-        <div class="stat"><b class="c-yellow">${C.stats[1]}</b><span>yellow</span></div>
-        <div class="stat"><b class="c-green">${C.stats[2]}</b><span>green</span></div>
+        <div class="stat"><b class="c-red">${C.stats[0]}</b><span>again</span></div>
+        <div class="stat"><b class="c-yellow">${C.stats[1]}</b><span>review</span></div>
+        <div class="stat"><b class="c-green">${C.stats[2]}</b><span>good</span></div>
       </div>
       <button class="btn primary wide" data-act="cAgain">Back to decks</button>
       <a class="btn tinted wide" href="#/practice">${ic('practice')} Take a quiz on this</a>
@@ -151,15 +152,12 @@
   A.act.cEnd = () => { C.phase = C.stats.some(Boolean) ? 'done' : 'setup'; A.rerender(); };
   A.act.cAgain = () => { C.phase = 'setup'; A.rerender(); };
   A.act.cBack = () => { if (C.phase !== 'run' || !C.i) return; C.i--; C.flipped = false; A.rerender(); };
-  A.act.cSkip = () => {
+  A.act.cNext = () => {
     if (C.phase !== 'run') return;
-    if (C.mode === 'browse') {
-      if (C.i >= C.queue.length - 1) C.phase = 'done'; else C.i++;
-    } else {
-      if (C.i >= C.queue.length - 1) return; // nothing else to show
-      C.queue.push(C.queue.splice(C.i, 1)[0]); // park it at the end of the session
-    }
-    C.flipped = false; A.rerender();
+    C.i++; C.flipped = false;
+    while (C.i < C.queue.length && C.greened.has(C.queue[C.i])) C.i++; // stale copies of cards already marked green
+    if (C.i >= C.queue.length) C.phase = 'done';
+    A.rerender();
   };
   A.act.cShuffle = () => {
     if (C.phase !== 'run' || C.i >= C.queue.length - 1) return;
@@ -192,7 +190,7 @@
     if (e.key === ' ' || e.key === 'Enter') { if (e.target.closest('button')) return; e.preventDefault(); A.act.cFlip(); }
     else if (C.flipped && '123'.includes(e.key) && e.key) A.act.cRate({ r: String(+e.key - 1) });
     else if (e.key === 'ArrowLeft') A.act.cBack();
-    else if (e.key === 'ArrowRight') A.act.cSkip();
+    else if (e.key === 'ArrowRight') A.act.cNext();
     else if (e.key === 's' || e.key === 'S') A.act.cShuffle();
   });
 
@@ -200,8 +198,8 @@
   let T = null;
   function swipeAction(dx, dy) {
     const ax = Math.abs(dx), ay = Math.abs(dy);
-    if (C.mode === 'browse') return ax > ay && ax > 60 ? (dx < 0 ? 'cSkip' : 'cBack') : null;
-    if (!C.flipped) return null;
+    if (C.mode === 'browse') return ax > ay && ax > 60 ? (dx < 0 ? 'cNext' : 'cBack') : null;
+    if (!C.flipped) return ax > ay && ax > 60 ? (dx < 0 ? 'cNext' : 'cBack') : null;
     if (ax > ay && ax > 60) return dx < 0 ? 0 : 2;
     if (dy > 60 && dy > ax) return 1;
     return null;
@@ -219,7 +217,7 @@
     if (!T.moved) return;
     T.el.style.transform = `translate(${dx}px, ${Math.max(0, dy)}px) rotate(${dx / 25}deg)`;
     const a = swipeAction(dx, dy);
-    const tint = typeof a === 'number' ? LIGHTS[a][0] : a === 'cSkip' ? 'next' : a === 'cBack' ? 'prev' : '';
+    const tint = typeof a === 'number' ? LIGHTS[a][0] : a === 'cNext' ? 'next' : a === 'cBack' ? 'prev' : '';
     if (tint) T.el.dataset.sw = tint; else delete T.el.dataset.sw;
   }, { passive: true });
   function swipeEnd(e) {

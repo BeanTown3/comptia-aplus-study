@@ -301,6 +301,7 @@ td.first { color: var(--label); font-weight: 500; }
 .lbtn.green { --c: var(--green); --g: rgba(48, 209, 88, .4); --t: rgba(48, 209, 88, .14); }
 .cnav { display: flex; gap: 8px; margin-top: 12px; }
 .cn { flex: 1; height: 42px; border: 0; border-radius: 12px; background: var(--bg2); color: var(--label2); font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.cn.next { background: var(--blue); color: #fff; }
 .cn .ic { width: 16px; height: 16px; }
 .cn:disabled { opacity: .35; }
 .cn:active { transform: scale(.96); }
