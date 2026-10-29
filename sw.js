@@ -1,5 +1,5 @@
-/* Network-first service worker: works offline after the first visit, never serves stale files when online. */
-const CACHE = 'aplus-study-v1';
+/* Network-first service worker: works offline after the first visit. no-store skips the browser HTTP cache (GitHub Pages sends max-age=600) so updates show up right away. */
+const CACHE = 'aplus-study-v2';
 const FILES = ['./', 'index.html', 'styles.css', 'core.js', 'views-a.js', 'views-b.js',
   'data-notes.js', 'data-cards.js', 'data-questions.js', 'icon.svg', 'apple-touch-icon.png', 'manifest.webmanifest'];
 
@@ -12,7 +12,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then(res => {
+    fetch(e.request, { cache: 'no-store' }).then(res => {
       const copy = res.clone();
       caches.open(CACHE).then(c => c.put(e.request, copy));
       return res;
